@@ -123,15 +123,18 @@ def post_json(api_url, payload, headers=None, timeout=45):
         return json.loads(raw) if raw else {}
 
 
-def bocha_search(query, count=5):
+def bocha_search(query, count=5, freshness="oneYear"):
     api_key = os.environ.get("BOCHA_API_KEY", "").strip()
     api_url = os.environ.get("BOCHA_API_URL", "https://api.bochaai.com/v1/web-search").strip()
     if not api_key:
         raise RuntimeError("BOCHA_API_KEY is not configured.")
 
+    search_payload = {"query": query, "summary": True, "count": count}
+    if freshness:
+        search_payload["freshness"] = freshness
     data = post_json(
         api_url,
-        {"query": query, "freshness": "oneYear", "summary": True, "count": count},
+        search_payload,
         headers={"Authorization": f"Bearer {api_key}"},
         timeout=30,
     )
@@ -283,10 +286,16 @@ def built_in_admission_request(payload):
     rank = pick(payload, "rank", default="")
     preferred_cities = ((payload.get("profile") or {}).get("preferredCities") or "").strip()
     preferred_majors = ((payload.get("profile") or {}).get("preferredMajors") or "").strip()
+    reference_year = year
+    try:
+        if str(year).isdigit():
+            reference_year = str(int(year) - 1)
+    except (TypeError, ValueError):
+        reference_year = year
 
     base_query = " ".join(str(part) for part in [
         province,
-        year,
+        reference_year,
         batch,
         subjects,
         score,
@@ -300,14 +309,15 @@ def built_in_admission_request(payload):
 
     queries = [
         base_query,
-        f"{province} {year} 高考 本科批 投档线 最低位次 院校专业组",
-        f"{province} {year} {preferred_majors} {preferred_cities} 高考 录取分数线 位次",
+        f"{province} {reference_year} 高考 本科批 投档线 最低位次 院校专业组",
+        f"{province} {reference_year} {rank} 位次 可报大学 {score} 分 录取分数线",
+        f"{province} {reference_year} {preferred_majors} {preferred_cities} 高考 录取分数线 位次",
     ]
     search_results = []
     for query in queries:
         query = " ".join(query.split())
         if query:
-            search_results.append({"query": query, "results": bocha_search(query, 8)})
+            search_results.append({"query": query, "results": bocha_search(query, 10, freshness=None)})
 
     candidates = extract_candidates_with_deepseek(payload, search_results)
     if not candidates:
