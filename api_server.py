@@ -2,6 +2,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib import request as urlrequest
 from urllib.error import HTTPError, URLError
+import html
 import json
 import os
 import re
@@ -151,6 +152,34 @@ def bocha_search(query, count=5, freshness="oneYear"):
             "datePublished": pick(page, "datePublished"),
         })
     return results
+
+
+def fetch_page_text(url, limit=3000):
+    if not url or not str(url).startswith(("http://", "https://")):
+        return ""
+    req = urlrequest.Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0 (compatible; ZhiyuanResearchBot/1.0)",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+        method="GET",
+    )
+    try:
+        with urlrequest.urlopen(req, timeout=12) as response:
+            content_type = response.headers.get("Content-Type", "")
+            if "text/html" not in content_type and "text/plain" not in content_type:
+                return ""
+            raw = response.read(600000)
+    except (HTTPError, URLError, TimeoutError):
+        return ""
+
+    text = raw.decode("utf-8", errors="replace")
+    text = re.sub(r"(?is)<script.*?</script>|<style.*?</style>|<noscript.*?</noscript>", " ", text)
+    text = re.sub(r"(?is)<[^>]+>", " ", text)
+    text = html.unescape(text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:limit]
 
 
 def parse_json_object(text):
@@ -317,7 +346,10 @@ def built_in_admission_request(payload):
     for query in queries:
         query = " ".join(query.split())
         if query:
-            search_results.append({"query": query, "results": bocha_search(query, 10, freshness=None)})
+            results = bocha_search(query, 10, freshness=None)
+            for result in results[:2]:
+                result["pageText"] = fetch_page_text(result.get("url"), 3000)
+            search_results.append({"query": query, "results": results})
 
     candidates = extract_candidates_with_deepseek(payload, search_results)
     if not candidates:
