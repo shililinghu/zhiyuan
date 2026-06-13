@@ -880,6 +880,9 @@
     async function loadResearchSummary(results = null, form = null) {
       const rows = results || window.__latestResults || [];
       const currentForm = form || getForm();
+      const cityItems = onlyFavoriteCities(currentForm.profile) && currentForm.profile.favoriteCities.length
+        ? currentForm.profile.favoriteCities
+        : uniqueValues(rows, "city");
       if (!rows.length) {
         setResearchStatus("没有候选数据，无法汇总院校/专业/城市信息。", "error");
         return null;
@@ -888,7 +891,7 @@
         items: {
           schools: uniqueValues(rows, "school"),
           majors: uniqueValues(rows, "major"),
-          cities: uniqueValues(rows, "city")
+          cities: cityItems
         },
         student: {
           year: currentForm.year,

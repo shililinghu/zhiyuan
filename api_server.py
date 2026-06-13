@@ -307,6 +307,8 @@ def extract_candidates_with_deepseek(payload, search_results):
             "如果资料是“某分数能上什么大学/分数段推荐”且没有逐校最低位次，可以使用 student.rank 作为参考 minRank，并把 group 写为“分数段推荐”。",
             "minScore 必须是数字；minRank 优先使用资料中的最低位次，没有逐校位次时才使用 student.rank。",
             "返回 6 到 20 条候选，覆盖冲稳保的不同分数/位次区间。",
+            "如果 city_constraints.strictFavoriteCities 为 true，候选的 city 必须来自 preferredCities；不要输出其他城市。",
+            "如果 strictFavoriteCities 为 true，尽量为 preferredCities 中每个城市都抽取候选，没有资料时再跳过该城市。",
             "不要对候选打分，不要输出综合分。",
         ],
         "output_schema": {
@@ -433,14 +435,22 @@ def built_in_admission_request(payload):
     if not base_query:
         base_query = "高考 本科批 录取分数线 最低位次 招生计划 院校专业组"
 
-    queries = [
-        base_query,
-        f"{province} {reference_year} 高考 本科批 投档线 最低位次 院校专业组",
-        f"{province} {reference_year} {rank} 位次 可报大学 {score} 分 录取分数线",
-        f"{province} {reference_year} {preferred_majors} {preferred_cities} 高考 录取分数线 位次",
-    ]
-    if only_favorite_cities(payload.get("profile") or {}) and preferred_cities:
-        queries.insert(0, f"{province} {reference_year} {score}分 {rank}位次 {' '.join(split_terms(preferred_cities))} 大学 录取分数线 位次")
+    favorite_city_terms = split_terms(preferred_cities)
+    strict_city = only_favorite_cities(payload.get("profile") or {})
+    if strict_city and favorite_city_terms:
+        queries = []
+        for city in favorite_city_terms:
+            queries.extend([
+                f"{province} {reference_year} {city} 大学 {score}分 {rank}位次 录取分数线 最低位次",
+                f"{province} {reference_year} {city} {preferred_majors} 高考 本科批 录取分数线 位次",
+            ])
+    else:
+        queries = [
+            base_query,
+            f"{province} {reference_year} 高考 本科批 投档线 最低位次 院校专业组",
+            f"{province} {reference_year} {rank} 位次 可报大学 {score} 分 录取分数线",
+            f"{province} {reference_year} {preferred_majors} {preferred_cities} 高考 录取分数线 位次",
+        ]
     search_results = []
     for query in queries:
         query = " ".join(query.split())
