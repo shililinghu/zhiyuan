@@ -139,6 +139,8 @@ def bocha_search(query, count=5, freshness="oneYear"):
         headers={"Authorization": f"Bearer {api_key}"},
         timeout=30,
     )
+    if isinstance(data.get("data"), dict):
+        data = data["data"]
     pages = ((data.get("webPages") or {}).get("value") or [])
     results = []
     for page in pages[:count]:
