@@ -27,6 +27,34 @@ def pick(source, *keys, default=""):
     return default
 
 
+def split_terms(value):
+    return [item.strip() for item in re.split(r"[\s,，、/；;。\n]+", str(value or "")) if item.strip()]
+
+
+def only_favorite_cities(profile):
+    blocked = "".join(split_terms((profile or {}).get("blockedCities", "")))
+    return any(keyword in blocked for keyword in ("其他都不去", "其他不去", "其他都不考虑", "只去这些", "只接受这些"))
+
+
+def filter_candidates_by_city(candidates, profile):
+    profile = profile or {}
+    favorite_cities = split_terms(profile.get("preferredCities") or profile.get("favoriteCities"))
+    blocked_cities = [
+        city for city in split_terms(profile.get("blockedCities"))
+        if city not in ("其他", "其他都不去", "其他不去", "其他都不考虑", "只去这些", "只接受这些")
+    ]
+    strict_favorites = only_favorite_cities(profile)
+    filtered = []
+    for row in candidates:
+        city = str(row.get("city") or "")
+        if blocked_cities and any(blocked in city for blocked in blocked_cities):
+            continue
+        if strict_favorites and favorite_cities and not any(favorite in city for favorite in favorite_cities):
+            continue
+        filtered.append(row)
+    return filtered
+
+
 def normalize_candidate(item):
     return {
         "school": pick(item, "school", "schoolName", "college", "collegeName", "name", "title", "院校", "学校"),
@@ -290,6 +318,11 @@ def extract_candidates_with_deepseek(payload, search_results):
             ]
         },
         "student": payload,
+        "city_constraints": {
+            "preferredCities": (payload.get("profile") or {}).get("preferredCities") or (payload.get("profile") or {}).get("favoriteCities") or "",
+            "blockedCities": (payload.get("profile") or {}).get("blockedCities") or "",
+            "strictFavoriteCities": only_favorite_cities(payload.get("profile") or {}),
+        },
         "search_results": search_results,
     }
     data = post_json(
@@ -323,7 +356,8 @@ def extract_candidates_with_deepseek(payload, search_results):
 
 def extract_candidates_from_search_text(payload, search_results):
     rank = number(pick(payload, "rank", default=0))
-    preferred_majors = ((payload.get("profile") or {}).get("preferredMajors") or "").strip()
+    profile = payload.get("profile") or {}
+    preferred_majors = (profile.get("preferredMajors") or profile.get("favoriteMajors") or "").strip()
     major = re.split(r"[\s,，、/]+", preferred_majors)[0] if preferred_majors else ""
     candidates = []
     seen = set()
@@ -369,8 +403,9 @@ def built_in_admission_request(payload):
     batch = pick(payload, "batch", default="")
     score = pick(payload, "score", default="")
     rank = pick(payload, "rank", default="")
-    preferred_cities = ((payload.get("profile") or {}).get("preferredCities") or "").strip()
-    preferred_majors = ((payload.get("profile") or {}).get("preferredMajors") or "").strip()
+    profile = payload.get("profile") or {}
+    preferred_cities = (profile.get("preferredCities") or profile.get("favoriteCities") or "").strip()
+    preferred_majors = (profile.get("preferredMajors") or profile.get("favoriteMajors") or "").strip()
     reference_year = year
     try:
         if str(year).isdigit():
@@ -398,6 +433,8 @@ def built_in_admission_request(payload):
         f"{province} {reference_year} {rank} 位次 可报大学 {score} 分 录取分数线",
         f"{province} {reference_year} {preferred_majors} {preferred_cities} 高考 录取分数线 位次",
     ]
+    if only_favorite_cities(payload.get("profile") or {}) and preferred_cities:
+        queries.insert(0, f"{province} {reference_year} {score}分 {rank}位次 {' '.join(split_terms(preferred_cities))} 大学 录取分数线 位次")
     search_results = []
     for query in queries:
         query = " ".join(query.split())
@@ -410,10 +447,11 @@ def built_in_admission_request(payload):
     candidates = extract_candidates_with_deepseek(payload, search_results)
     if not candidates:
         candidates = extract_candidates_from_search_text(payload, search_results)
+    candidates = filter_candidates_by_city(candidates, payload.get("profile") or {})
     if not candidates:
         return {
             "ok": False,
-            "error": "联网搜索已完成，但没有抽取到同时包含最低分和最低位次的候选数据。请补充省份、年份、科类、分数/位次，或导入官方 CSV。",
+            "error": "联网搜索已完成，但没有抽取到符合城市限制且包含最低分/最低位次的候选数据。请放宽城市限制，或导入官方 CSV。",
             "source": "bocha+deepseek",
             "candidates": [],
         }, 502

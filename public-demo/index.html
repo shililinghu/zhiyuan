@@ -814,6 +814,25 @@
       return keywords.some(keyword => value.includes(keyword));
     }
 
+    function onlyFavoriteCities(profile) {
+      const blocked = (profile.blockedCities || []).join("");
+      return ["其他都不去", "其他不去", "其他都不考虑", "只去这些", "只接受这些"].some(keyword => blocked.includes(keyword));
+    }
+
+    function filterRowsByCityPreference(rows, form) {
+      const favorites = form.profile.favoriteCities || [];
+      const blocked = (form.profile.blockedCities || []).filter(city =>
+        !["其他", "其他都不去", "其他不去", "其他都不考虑", "只去这些", "只接受这些"].includes(city)
+      );
+      const strictFavorites = onlyFavoriteCities(form.profile);
+      return rows.filter(row => {
+        const city = String(row.city || "");
+        if (blocked.some(item => city.includes(item))) return false;
+        if (strictFavorites && favorites.length && !favorites.some(item => city.includes(item))) return false;
+        return true;
+      });
+    }
+
     function setDataStatus(message, tone = "normal") {
       const el = document.getElementById("dataStatus");
       el.textContent = message;
@@ -934,9 +953,10 @@
         if (!response.ok || !payload.ok) {
           throw new Error(payload.error || `HTTP ${response.status}`);
         }
-        document.getElementById("candidateText").value = rowsToCsv(payload.candidates || []);
-        setDataStatus(`候选数据获取成功，载入 ${payload.count || 0} 条数据。`, "ok");
-        return payload.candidates || [];
+        const rows = filterRowsByCityPreference(payload.candidates || [], getForm());
+        document.getElementById("candidateText").value = rowsToCsv(rows);
+        setDataStatus(`候选数据获取成功，载入 ${rows.length} 条符合城市限制的数据。`, "ok");
+        return rows;
       } catch (error) {
         setDataStatus(`候选数据获取失败：${error.message}`, "error");
         return [];
@@ -1016,9 +1036,9 @@
 
     function evaluate() {
       const form = getForm();
-      const rows = parseCsv(document.getElementById("candidateText").value);
+      const rows = filterRowsByCityPreference(parseCsv(document.getElementById("candidateText").value), form);
       if (!rows.length) {
-        renderResults([], form, "没有可评估数据，请先联网获取候选数据或导入官方 CSV。");
+        renderResults([], form, "没有符合城市限制的可评估数据，请调整城市偏好、重新联网获取候选数据或导入官方 CSV。");
         return { results: [], form };
       }
       const results = rows.map(row => {
