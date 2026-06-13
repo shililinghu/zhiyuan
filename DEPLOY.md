@@ -18,6 +18,11 @@
    - `ADMISSION_API_KEY`：真实 API 的 key/token，没有鉴权可不填
    - `RESEARCH_API_URL`：网络调研/搜索汇总 API 地址
    - `RESEARCH_API_KEY`：调研 API 的 key/token，没有鉴权可不填
+   - `BOCHA_API_KEY`：博查 Web Search API key
+   - `BOCHA_API_URL`：默认 `https://api.bochaai.com/v1/web-search`
+   - `DEEPSEEK_API_KEY`：DeepSeek API key
+   - `DEEPSEEK_API_URL`：默认 `https://api.deepseek.com/chat/completions`
+   - `DEEPSEEK_MODEL`：默认 `deepseek-v4-flash`
 6. 部署完成后，Render 会给一个公网 URL。
 
 ## 后端调用真实 API 的约定
@@ -67,7 +72,10 @@ POST /api/research/summary
 Content-Type: application/json
 ```
 
-后端会转发到 `RESEARCH_API_URL`。请求体大致为：
+后端优先使用内置闭环：博查 Web Search API 负责联网搜索，DeepSeek 负责把搜索结果整理成 JSON 摘要。
+如果没有配置 `BOCHA_API_KEY` / `DEEPSEEK_API_KEY`，也兼容转发到自定义的 `RESEARCH_API_URL`。
+
+请求体大致为：
 
 ```json
 {
@@ -125,8 +133,8 @@ http://127.0.0.1:4173
 ```powershell
 $env:ADMISSION_API_URL="https://your-api.example.com/search"
 $env:ADMISSION_API_KEY="your-token"
-$env:RESEARCH_API_URL="https://your-api.example.com/research"
-$env:RESEARCH_API_KEY="your-token"
+$env:BOCHA_API_KEY="your-bocha-token"
+$env:DEEPSEEK_API_KEY="your-deepseek-token"
 python api_server.py
 ```
 

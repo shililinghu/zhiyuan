@@ -16,3 +16,13 @@ services:
         sync: false
       - key: RESEARCH_API_KEY
         sync: false
+      - key: BOCHA_API_KEY
+        sync: false
+      - key: BOCHA_API_URL
+        value: https://api.bochaai.com/v1/web-search
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: DEEPSEEK_API_URL
+        value: https://api.deepseek.com/chat/completions
+      - key: DEEPSEEK_MODEL
+        value: deepseek-v4-flash

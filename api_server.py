@@ -4,6 +4,7 @@ from urllib import request as urlrequest
 from urllib.error import HTTPError, URLError
 import json
 import os
+import re
 
 
 ROOT = Path(__file__).resolve().parent / "public-demo"
@@ -103,14 +104,166 @@ def normalize_summary_list(value, fallback_names):
     return []
 
 
+def empty_summaries():
+    return {"schools": [], "majors": [], "cities": []}
+
+
+def post_json(api_url, payload, headers=None, timeout=45):
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    req_headers = {"Content-Type": "application/json"}
+    if headers:
+        req_headers.update(headers)
+    req = urlrequest.Request(api_url, data=body, headers=req_headers, method="POST")
+    with urlrequest.urlopen(req, timeout=timeout) as response:
+        raw = response.read().decode("utf-8")
+        return json.loads(raw) if raw else {}
+
+
+def bocha_search(query, count=5):
+    api_key = os.environ.get("BOCHA_API_KEY", "").strip()
+    api_url = os.environ.get("BOCHA_API_URL", "https://api.bochaai.com/v1/web-search").strip()
+    if not api_key:
+        raise RuntimeError("BOCHA_API_KEY is not configured.")
+
+    data = post_json(
+        api_url,
+        {"query": query, "freshness": "oneYear", "summary": True, "count": count},
+        headers={"Authorization": f"Bearer {api_key}"},
+        timeout=30,
+    )
+    pages = ((data.get("webPages") or {}).get("value") or [])
+    results = []
+    for page in pages[:count]:
+        if not isinstance(page, dict):
+            continue
+        results.append({
+            "title": pick(page, "name", "title"),
+            "url": pick(page, "url"),
+            "siteName": pick(page, "siteName"),
+            "snippet": pick(page, "summary", "snippet", "description"),
+            "datePublished": pick(page, "datePublished"),
+        })
+    return results
+
+
+def parse_json_object(text):
+    if not isinstance(text, str):
+        return {}
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    match = re.search(r"\{[\s\S]*\}", text)
+    if not match:
+        return {}
+    try:
+        return json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return {}
+
+
+def summarize_with_deepseek(payload, research_context):
+    api_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
+    api_url = os.environ.get("DEEPSEEK_API_URL", "https://api.deepseek.com/chat/completions").strip()
+    model = os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-flash").strip()
+    if not api_key:
+        raise RuntimeError("DEEPSEEK_API_KEY is not configured.")
+
+    prompt = {
+        "task": "把联网搜索结果整理成高考志愿辅助调研摘要。只做信息汇总，不替用户打分，不替用户做主观偏好判断。",
+        "output_schema": {
+            "summaries": {
+                "schools": [{"name": "院校名", "summary": "200字以内中文摘要", "sources": [{"title": "来源标题", "url": "https://..."}]}],
+                "majors": [{"name": "专业名", "summary": "200字以内中文摘要", "sources": [{"title": "来源标题", "url": "https://..."}]}],
+                "cities": [{"name": "城市名", "summary": "200字以内中文摘要", "sources": [{"title": "来源标题", "url": "https://..."}]}],
+            }
+        },
+        "student": payload.get("student", {}),
+        "profile": payload.get("profile", {}),
+        "items": payload.get("items", {}),
+        "search_results": research_context,
+    }
+    data = post_json(
+        api_url,
+        {
+            "model": model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "你是严谨的高考志愿信息整理助手。只能依据给定搜索结果总结，必须返回合法 JSON，不要输出 Markdown。",
+                },
+                {"role": "user", "content": json.dumps(prompt, ensure_ascii=False)},
+            ],
+            "response_format": {"type": "json_object"},
+            "stream": False,
+        },
+        headers={"Authorization": f"Bearer {api_key}"},
+        timeout=60,
+    )
+    choices = data.get("choices") or []
+    content = ""
+    if choices and isinstance(choices[0], dict):
+        content = ((choices[0].get("message") or {}).get("content") or "")
+    parsed = parse_json_object(content)
+    return parsed.get("summaries", parsed)
+
+
+def built_in_research_request(payload):
+    items = payload.get("items") or {}
+    schools = [name for name in items.get("schools", []) if name][:6]
+    majors = [name for name in items.get("majors", []) if name][:6]
+    cities = [name for name in items.get("cities", []) if name][:6]
+
+    research_context = {"schools": {}, "majors": {}, "cities": {}}
+    for school in schools:
+        research_context["schools"][school] = bocha_search(f"{school} 高考 招生章程 优势学科 校区 官方", 5)
+    for major in majors:
+        research_context["majors"][major] = bocha_search(f"{major} 专业 就业方向 课程 高考 报考", 5)
+    for city in cities:
+        research_context["cities"][city] = bocha_search(f"{city} 城市 大学 生活成本 交通 气候 就业", 5)
+
+    summaries = summarize_with_deepseek(payload, research_context)
+    result = {
+        "schools": normalize_summary_list(summaries.get("schools") or summaries.get("schoolSummaries") or [], schools),
+        "majors": normalize_summary_list(summaries.get("majors") or summaries.get("majorSummaries") or [], majors),
+        "cities": normalize_summary_list(summaries.get("cities") or summaries.get("citySummaries") or [], cities),
+    }
+    return {"ok": True, "source": "bocha+deepseek", "summaries": result}, 200
+
+
 def research_request(payload):
+    bocha_configured = bool(os.environ.get("BOCHA_API_KEY", "").strip())
+    deepseek_configured = bool(os.environ.get("DEEPSEEK_API_KEY", "").strip())
+    if bocha_configured or deepseek_configured:
+        if not (bocha_configured and deepseek_configured):
+            missing = []
+            if not bocha_configured:
+                missing.append("BOCHA_API_KEY")
+            if not deepseek_configured:
+                missing.append("DEEPSEEK_API_KEY")
+            return {
+                "ok": False,
+                "error": f"Research API is partly configured. Missing: {', '.join(missing)}.",
+                "summaries": empty_summaries(),
+            }, 503
+        try:
+            return built_in_research_request(payload)
+        except HTTPError as exc:
+            return {"ok": False, "error": f"Research provider returned HTTP {exc.code}", "summaries": empty_summaries()}, 502
+        except URLError as exc:
+            return {"ok": False, "error": f"Research provider is unavailable: {exc.reason}", "summaries": empty_summaries()}, 502
+        except json.JSONDecodeError:
+            return {"ok": False, "error": "Research provider did not return valid JSON.", "summaries": empty_summaries()}, 502
+        except RuntimeError as exc:
+            return {"ok": False, "error": str(exc), "summaries": empty_summaries()}, 503
+
     api_url = os.environ.get("RESEARCH_API_URL", "").strip()
     api_key = os.environ.get("RESEARCH_API_KEY", "").strip()
     if not api_url:
         return {
             "ok": False,
-            "error": "Research API is not configured. Set RESEARCH_API_URL and, if needed, RESEARCH_API_KEY.",
-            "summaries": {"schools": [], "majors": [], "cities": []},
+            "error": "Research API is not configured. Set BOCHA_API_KEY and DEEPSEEK_API_KEY, or set RESEARCH_API_URL.",
+            "summaries": empty_summaries(),
         }, 503
 
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -124,11 +277,11 @@ def research_request(payload):
             raw = response.read().decode("utf-8")
             data = json.loads(raw) if raw else {}
     except HTTPError as exc:
-        return {"ok": False, "error": f"Research API returned HTTP {exc.code}", "summaries": {"schools": [], "majors": [], "cities": []}}, 502
+        return {"ok": False, "error": f"Research API returned HTTP {exc.code}", "summaries": empty_summaries()}, 502
     except URLError as exc:
-        return {"ok": False, "error": f"Research API is unavailable: {exc.reason}", "summaries": {"schools": [], "majors": [], "cities": []}}, 502
+        return {"ok": False, "error": f"Research API is unavailable: {exc.reason}", "summaries": empty_summaries()}, 502
     except json.JSONDecodeError:
-        return {"ok": False, "error": "Research API did not return valid JSON.", "summaries": {"schools": [], "majors": [], "cities": []}}, 502
+        return {"ok": False, "error": "Research API did not return valid JSON.", "summaries": empty_summaries()}, 502
 
     summaries = data.get("summaries", data)
     items = payload.get("items", {})
@@ -161,7 +314,15 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path == "/api/health":
             configured = bool(os.environ.get("ADMISSION_API_URL", "").strip())
             research_configured = bool(os.environ.get("RESEARCH_API_URL", "").strip())
-            return self.send_json(200, {"ok": True, "admissionApiConfigured": configured, "researchApiConfigured": research_configured})
+            bocha_configured = bool(os.environ.get("BOCHA_API_KEY", "").strip())
+            deepseek_configured = bool(os.environ.get("DEEPSEEK_API_KEY", "").strip())
+            return self.send_json(200, {
+                "ok": True,
+                "admissionApiConfigured": configured,
+                "researchApiConfigured": research_configured or (bocha_configured and deepseek_configured),
+                "bochaConfigured": bocha_configured,
+                "deepseekConfigured": deepseek_configured,
+            })
         return super().do_GET()
 
     def do_POST(self):
