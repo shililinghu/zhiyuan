@@ -51,7 +51,18 @@ def provider_request(payload):
         bocha_configured = bool(os.environ.get("BOCHA_API_KEY", "").strip())
         deepseek_configured = bool(os.environ.get("DEEPSEEK_API_KEY", "").strip())
         if bocha_configured and deepseek_configured:
-            return built_in_admission_request(payload)
+            try:
+                return built_in_admission_request(payload)
+            except HTTPError as exc:
+                return {"ok": False, "error": f"招生候选数据源返回 HTTP {exc.code}", "candidates": []}, 502
+            except URLError as exc:
+                return {"ok": False, "error": f"招生候选数据源无法访问：{exc.reason}", "candidates": []}, 502
+            except json.JSONDecodeError:
+                return {"ok": False, "error": "招生候选数据源返回的不是合法 JSON。", "candidates": []}, 502
+            except RuntimeError as exc:
+                return {"ok": False, "error": str(exc), "candidates": []}, 503
+            except Exception as exc:
+                return {"ok": False, "error": f"招生候选数据抽取失败：{type(exc).__name__}", "candidates": []}, 502
         return {
             "ok": False,
             "error": "后端未配置招生数据源。请设置 ADMISSION_API_URL，或配置 BOCHA_API_KEY 与 DEEPSEEK_API_KEY 以启用联网抽取。",
@@ -392,7 +403,7 @@ def built_in_admission_request(payload):
         query = " ".join(query.split())
         if query:
             results = bocha_search(query, 10, freshness=None)
-            for result in results[:2]:
+            for result in results[:1]:
                 result["pageText"] = fetch_page_text(result.get("url"), 3000)
             search_results.append({"query": query, "results": results})
 
