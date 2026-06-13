@@ -372,8 +372,11 @@ def extract_candidates_from_search_text(payload, search_results):
     patterns = [
         r"([^，。、；;：:\n]{2,40}?)[(（]最低\s*(\d{3})\s*分[)）]",
         r"([^，。、；;：:\n]{2,40}?)[(（][^()（）]{0,16}[)）][(（]最低\s*(\d{3})\s*分[)）]",
+        r"([\u4e00-\u9fa5A-Za-z0-9（）()·]{2,30}(?:大学|学院))[^。；;\n]{0,50}?最低分(?:为|在)?[:：]?\s*(\d{3})",
+        r"([\u4e00-\u9fa5A-Za-z0-9（）()·]{2,30}(?:大学|学院))[^。；;\n]{0,50}?最低录取分数线(?:为|是)?[:：]?\s*(\d{3})",
     ]
     for group in search_results:
+        city_hint = group.get("city", "")
         for result in group.get("results", []):
             text = " ".join(str(result.get(key) or "") for key in ("summary", "snippet", "pageText"))
             for pattern in patterns:
@@ -389,7 +392,7 @@ def extract_candidates_from_search_text(payload, search_results):
                         "school": school,
                         "group": "分数段推荐",
                         "major": major,
-                        "city": "",
+                        "city": city_hint,
                         "minScore": score,
                         "minRank": rank,
                         "plan": 0,
@@ -438,32 +441,48 @@ def built_in_admission_request(payload):
     favorite_city_terms = split_terms(preferred_cities)
     strict_city = only_favorite_cities(payload.get("profile") or {})
     if strict_city and favorite_city_terms:
-        queries = []
+        query_specs = []
         for city in favorite_city_terms:
-            queries.extend([
-                f"{province} {reference_year} {city} 大学 {score}分 {rank}位次 录取分数线 最低位次",
-                f"{province} {reference_year} {city} {preferred_majors} 高考 本科批 录取分数线 位次",
+            query_specs.extend([
+                (f"{province} {reference_year} {city} 大学 {score}分 {rank}位次 录取分数线 最低位次", city),
+                (f"{province} {reference_year} {city} {preferred_majors} 高考 本科批 录取分数线 位次", city),
             ])
     else:
-        queries = [
+        query_specs = [
             base_query,
             f"{province} {reference_year} 高考 本科批 投档线 最低位次 院校专业组",
             f"{province} {reference_year} {rank} 位次 可报大学 {score} 分 录取分数线",
             f"{province} {reference_year} {preferred_majors} {preferred_cities} 高考 录取分数线 位次",
         ]
+        query_specs = [(query, "") for query in query_specs]
     search_results = []
-    for query in queries:
+    for query, query_city in query_specs:
         query = " ".join(query.split())
         if query:
             results = bocha_search(query, 10, freshness=None)
             for result in results[:1]:
                 result["pageText"] = fetch_page_text(result.get("url"), 3000)
-            search_results.append({"query": query, "results": results})
+            search_results.append({"query": query, "city": query_city, "results": results})
 
     candidates = extract_candidates_with_deepseek(payload, search_results)
     if not candidates:
         candidates = extract_candidates_from_search_text(payload, search_results)
     candidates = filter_candidates_by_city(candidates, payload.get("profile") or {})
+    if strict_city and favorite_city_terms:
+        present_cities = {str(row.get("city") or "") for row in candidates}
+        missing_cities = [city for city in favorite_city_terms if city not in present_cities]
+        for city in missing_cities:
+            city_context = [group for group in search_results if group.get("city") == city]
+            candidates.extend(filter_candidates_by_city(extract_candidates_from_search_text(payload, city_context), payload.get("profile") or {}))
+        deduped = []
+        seen = set()
+        for row in candidates:
+            key = (row.get("school"), row.get("group"), row.get("city"), row.get("minScore"))
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(row)
+        candidates = deduped
     if not candidates:
         return {
             "ok": False,
