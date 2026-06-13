@@ -29,7 +29,7 @@ def pick(source, *keys, default=""):
 
 def normalize_candidate(item):
     return {
-        "school": pick(item, "school", "schoolName", "college", "collegeName", "院校", "学校"),
+        "school": pick(item, "school", "schoolName", "college", "collegeName", "name", "title", "院校", "学校"),
         "group": pick(item, "group", "groupName", "majorGroup", "专业组"),
         "major": pick(item, "major", "majorName", "subject", "专业"),
         "city": pick(item, "city", "cityName", "城市"),
