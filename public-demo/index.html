@@ -655,17 +655,17 @@
           <section id="candidates">
             <div class="section-head">
               <h2>候选数据</h2>
-              <span class="muted">调用真实 API，或导入官方 CSV</span>
+              <span class="muted">联网抽取候选，或导入官方 CSV</span>
             </div>
             <div class="section-body">
               <div class="import-row">
                 <input id="csvFile" class="hidden" type="file" accept=".csv,text/csv" />
-                <button class="btn primary" id="loadDataBtn" type="button">调用真实数据 API</button>
+                <button class="btn primary" id="loadDataBtn" type="button">联网获取候选数据</button>
                 <button class="btn" id="uploadBtn" type="button">导入官方 CSV</button>
                 <button class="btn" id="clearBtn" type="button">清空</button>
                 <span class="muted">字段：院校, 专业组, 专业, 城市, 最低分, 最低位次, 计划, 性质, 用户院校评价, 用户专业评价, 用户城市评价, 个人备注</span>
               </div>
-              <p class="muted" id="dataStatus" style="margin: 10px 0 0;">尚未连接真实数据。点击“调用真实数据 API”，或导入官方 CSV。</p>
+              <p class="muted" id="dataStatus" style="margin: 10px 0 0;">点击“联网获取候选数据”，或导入官方 CSV。</p>
               <label style="margin-top: 14px;">候选数据
                 <textarea id="candidateText" spellcheck="false"></textarea>
               </label>
@@ -923,7 +923,7 @@
     }
 
     async function loadRealData() {
-      setDataStatus("正在调用真实数据 API ...");
+      setDataStatus("正在联网获取候选数据 ...");
       try {
         const response = await fetch("/api/admissions/search", {
           method: "POST",
@@ -935,10 +935,10 @@
           throw new Error(payload.error || `HTTP ${response.status}`);
         }
         document.getElementById("candidateText").value = rowsToCsv(payload.candidates || []);
-        setDataStatus(`真实数据 API 调用成功，载入 ${payload.count || 0} 条候选数据。`, "ok");
+        setDataStatus(`候选数据获取成功，载入 ${payload.count || 0} 条数据。`, "ok");
         return payload.candidates || [];
       } catch (error) {
-        setDataStatus(`真实数据 API 调用失败：${error.message}`, "error");
+        setDataStatus(`候选数据获取失败：${error.message}`, "error");
         return [];
       }
     }
@@ -1018,7 +1018,7 @@
       const form = getForm();
       const rows = parseCsv(document.getElementById("candidateText").value);
       if (!rows.length) {
-        renderResults([], form, "没有可评估数据，请先调用真实数据 API 或导入官方 CSV。");
+        renderResults([], form, "没有可评估数据，请先联网获取候选数据或导入官方 CSV。");
         return { results: [], form };
       }
       const results = rows.map(row => {

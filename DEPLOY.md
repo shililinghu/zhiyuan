@@ -34,7 +34,8 @@ POST /api/admissions/search
 Content-Type: application/json
 ```
 
-本服务再把请求转发给 `ADMISSION_API_URL`。
+如果配置了 `ADMISSION_API_URL`，本服务会把请求转发给该招生数据 API。
+如果没有配置 `ADMISSION_API_URL`，但已配置 `BOCHA_API_KEY` 与 `DEEPSEEK_API_KEY`，本服务会使用博查联网搜索，再由 DeepSeek 抽取候选数据。
 
 真实数据 API 返回格式支持以下任意一种：
 

@@ -47,9 +47,13 @@ def provider_request(payload):
     api_url = os.environ.get("ADMISSION_API_URL", "").strip()
     api_key = os.environ.get("ADMISSION_API_KEY", "").strip()
     if not api_url:
+        bocha_configured = bool(os.environ.get("BOCHA_API_KEY", "").strip())
+        deepseek_configured = bool(os.environ.get("DEEPSEEK_API_KEY", "").strip())
+        if bocha_configured and deepseek_configured:
+            return built_in_admission_request(payload)
         return {
             "ok": False,
-            "error": "后端未配置真实数据 API。请设置 ADMISSION_API_URL；如需要鉴权，同时设置 ADMISSION_API_KEY。",
+            "error": "后端未配置招生数据源。请设置 ADMISSION_API_URL，或配置 BOCHA_API_KEY 与 DEEPSEEK_API_KEY 以启用联网抽取。",
             "candidates": [],
         }, 503
 
@@ -208,6 +212,114 @@ def summarize_with_deepseek(payload, research_context):
     return parsed.get("summaries", parsed)
 
 
+def extract_candidates_with_deepseek(payload, search_results):
+    api_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
+    api_url = os.environ.get("DEEPSEEK_API_URL", "https://api.deepseek.com/chat/completions").strip()
+    model = os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-flash").strip()
+    if not api_key:
+        raise RuntimeError("DEEPSEEK_API_KEY is not configured.")
+
+    prompt = {
+        "task": "依据联网搜索结果抽取高考志愿候选数据。只抽取资料中出现或可以直接对应的院校/专业/城市/最低分/最低位次/计划数/性质，不要编造。用户评价字段留空。",
+        "rules": [
+            "优先使用目标省份、目标年份附近的普通本科批/本科批数据。",
+            "如果无法确定专业组或专业，可以使用资料中更明确的招生类别名称。",
+            "minScore 和 minRank 必须是数字；缺少这两个字段的行不要输出。",
+            "返回 6 到 20 条候选，覆盖冲稳保的不同分数/位次区间。",
+            "不要对候选打分，不要输出综合分。",
+        ],
+        "output_schema": {
+            "candidates": [
+                {
+                    "school": "院校",
+                    "group": "专业组或类别",
+                    "major": "专业",
+                    "city": "城市",
+                    "minScore": 580,
+                    "minRank": 32000,
+                    "plan": 50,
+                    "type": "公办/民办/中外合作等",
+                }
+            ]
+        },
+        "student": payload,
+        "search_results": search_results,
+    }
+    data = post_json(
+        api_url,
+        {
+            "model": model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "你是严谨的高考招生数据抽取助手。只能依据给定搜索结果抽取结构化候选数据，必须返回合法 JSON，不要输出 Markdown。",
+                },
+                {"role": "user", "content": json.dumps(prompt, ensure_ascii=False)},
+            ],
+            "response_format": {"type": "json_object"},
+            "stream": False,
+        },
+        headers={"Authorization": f"Bearer {api_key}"},
+        timeout=60,
+    )
+    choices = data.get("choices") or []
+    content = ""
+    if choices and isinstance(choices[0], dict):
+        content = ((choices[0].get("message") or {}).get("content") or "")
+    parsed = parse_json_object(content)
+    rows = parsed.get("candidates") or parsed.get("data") or parsed.get("records") or []
+    if not isinstance(rows, list):
+        rows = []
+    candidates = [normalize_candidate(row) for row in rows if isinstance(row, dict)]
+    return [row for row in candidates if row["school"] and row["minScore"] and row["minRank"]]
+
+
+def built_in_admission_request(payload):
+    province = pick(payload, "province", default="")
+    year = pick(payload, "year", default="")
+    subjects = pick(payload, "subjects", default="")
+    batch = pick(payload, "batch", default="")
+    score = pick(payload, "score", default="")
+    rank = pick(payload, "rank", default="")
+    preferred_cities = ((payload.get("profile") or {}).get("preferredCities") or "").strip()
+    preferred_majors = ((payload.get("profile") or {}).get("preferredMajors") or "").strip()
+
+    base_query = " ".join(str(part) for part in [
+        province,
+        year,
+        batch,
+        subjects,
+        score,
+        rank,
+        preferred_cities,
+        preferred_majors,
+        "高考 录取分数线 最低位次 招生计划 院校专业组",
+    ] if part)
+    if not base_query:
+        base_query = "高考 本科批 录取分数线 最低位次 招生计划 院校专业组"
+
+    queries = [
+        base_query,
+        f"{province} {year} 高考 本科批 投档线 最低位次 院校专业组",
+        f"{province} {year} {preferred_majors} {preferred_cities} 高考 录取分数线 位次",
+    ]
+    search_results = []
+    for query in queries:
+        query = " ".join(query.split())
+        if query:
+            search_results.append({"query": query, "results": bocha_search(query, 8)})
+
+    candidates = extract_candidates_with_deepseek(payload, search_results)
+    if not candidates:
+        return {
+            "ok": False,
+            "error": "联网搜索已完成，但没有抽取到同时包含最低分和最低位次的候选数据。请补充省份、年份、科类、分数/位次，或导入官方 CSV。",
+            "source": "bocha+deepseek",
+            "candidates": [],
+        }, 502
+    return {"ok": True, "source": "bocha+deepseek", "count": len(candidates), "candidates": candidates}, 200
+
+
 def built_in_research_request(payload):
     items = payload.get("items") or {}
     schools = [name for name in items.get("schools", []) if name][:6]
@@ -312,13 +424,14 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/api/health":
-            configured = bool(os.environ.get("ADMISSION_API_URL", "").strip())
+            admission_configured = bool(os.environ.get("ADMISSION_API_URL", "").strip())
             research_configured = bool(os.environ.get("RESEARCH_API_URL", "").strip())
             bocha_configured = bool(os.environ.get("BOCHA_API_KEY", "").strip())
             deepseek_configured = bool(os.environ.get("DEEPSEEK_API_KEY", "").strip())
             return self.send_json(200, {
                 "ok": True,
-                "admissionApiConfigured": configured,
+                "admissionApiConfigured": admission_configured or (bocha_configured and deepseek_configured),
+                "externalAdmissionApiConfigured": admission_configured,
                 "researchApiConfigured": research_configured or (bocha_configured and deepseek_configured),
                 "bochaConfigured": bocha_configured,
                 "deepseekConfigured": deepseek_configured,
