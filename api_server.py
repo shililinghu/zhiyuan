@@ -38,8 +38,13 @@ def terms_text(value):
 
 
 def only_favorite_cities(profile):
-    blocked = "".join(split_terms((profile or {}).get("blockedCities", "")))
-    return any(keyword in blocked for keyword in ("其他都不去", "其他不去", "其他都不考虑", "只去这些", "只接受这些"))
+    profile = profile or {}
+    blocked = "".join(split_terms(profile.get("blockedCities", "")))
+    priority = number((profile.get("userPriority") or {}).get("city") or profile.get("cityPriority"), 0)
+    return bool(split_terms(profile.get("preferredCities") or profile.get("favoriteCities"))) and (
+        priority >= 50
+        or any(keyword in blocked for keyword in ("其他", "其它", "其他都不去", "其它都不去", "其他不去", "其它不去", "其他都不考虑", "其它都不考虑", "只去这些", "只接受这些"))
+    )
 
 
 def filter_candidates_by_city(candidates, profile):

@@ -816,7 +816,11 @@
 
     function onlyFavoriteCities(profile) {
       const blocked = (profile.blockedCities || []).join("");
-      return ["其他都不去", "其他不去", "其他都不考虑", "只去这些", "只接受这些"].some(keyword => blocked.includes(keyword));
+      const cityPriority = Number(profile.cityPriority || 0);
+      return (profile.favoriteCities || []).length > 0 && (
+        cityPriority >= 50 ||
+        ["其他", "其它", "其他都不去", "其它都不去", "其他不去", "其它不去", "其他都不考虑", "其它都不考虑", "只去这些", "只接受这些"].some(keyword => blocked.includes(keyword))
+      );
     }
 
     function filterRowsByCityPreference(rows, form) {
@@ -880,7 +884,7 @@
     async function loadResearchSummary(results = null, form = null) {
       const rows = results || window.__latestResults || [];
       const currentForm = form || getForm();
-      const cityItems = onlyFavoriteCities(currentForm.profile) && currentForm.profile.favoriteCities.length
+      const cityItems = currentForm.profile.favoriteCities.length
         ? currentForm.profile.favoriteCities
         : uniqueValues(rows, "city");
       if (!rows.length) {
@@ -940,7 +944,7 @@
         score: form.score,
         rank: form.rank,
         controlLine: form.controlLine,
-        profile: form.profile
+        profile: { ...form.profile, userPriority: form.userPriority, cityPriority: form.userPriority.city }
       };
     }
 
@@ -1029,6 +1033,7 @@
           blockedCities: splitList(document.getElementById("blockedCities").value),
           favoriteMajors: splitList(document.getElementById("favoriteMajors").value),
           blockedMajors: splitList(document.getElementById("blockedMajors").value),
+          cityPriority: Number(document.getElementById("cityPriority").value),
           careerGoal: document.getElementById("careerGoal").value,
           budget: document.getElementById("budget").value,
           distancePreference: document.getElementById("distancePreference").value,
