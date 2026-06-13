@@ -184,7 +184,7 @@ def fetch_page_text(url, limit=3000):
             if "text/html" not in content_type and "text/plain" not in content_type:
                 return ""
             raw = response.read(600000)
-    except (HTTPError, URLError, TimeoutError):
+    except (HTTPError, URLError, TimeoutError, Exception):
         return ""
 
     text = raw.decode("utf-8", errors="replace")
