@@ -308,6 +308,47 @@ def extract_candidates_with_deepseek(payload, search_results):
     return [row for row in candidates if row["school"] and row["minScore"] and row["minRank"]]
 
 
+def extract_candidates_from_search_text(payload, search_results):
+    rank = number(pick(payload, "rank", default=0))
+    preferred_majors = ((payload.get("profile") or {}).get("preferredMajors") or "").strip()
+    major = re.split(r"[\s,，、/]+", preferred_majors)[0] if preferred_majors else ""
+    candidates = []
+    seen = set()
+    patterns = [
+        r"([^，。、；;：:\n]{2,40}?)[(（]最低\s*(\d{3})\s*分[)）]",
+        r"([^，。、；;：:\n]{2,40}?)[(（][^()（）]{0,16}[)）][(（]最低\s*(\d{3})\s*分[)）]",
+    ]
+    for group in search_results:
+        for result in group.get("results", []):
+            text = " ".join(str(result.get(key) or "") for key in ("summary", "snippet", "pageText"))
+            for pattern in patterns:
+                for match in re.finditer(pattern, text):
+                    school = re.sub(r"^[省内外:：\s]+", "", match.group(1)).strip()
+                    school = school.strip(" 、，。；;:：")
+                    score = number(match.group(2))
+                    key = (school, score)
+                    if not school or len(school) > 40 or key in seen:
+                        continue
+                    seen.add(key)
+                    candidates.append({
+                        "school": school,
+                        "group": "分数段推荐",
+                        "major": major,
+                        "city": "",
+                        "minScore": score,
+                        "minRank": rank,
+                        "plan": 0,
+                        "type": "",
+                        "userSchoolRating": "",
+                        "userMajorRating": "",
+                        "userCityRating": "",
+                        "userNote": "由联网搜索摘要抽取；最低位次为考生当前位次参考。",
+                    })
+                    if len(candidates) >= 20:
+                        return candidates
+    return candidates
+
+
 def built_in_admission_request(payload):
     province = pick(payload, "province", default="")
     year = pick(payload, "year", default="")
@@ -354,6 +395,8 @@ def built_in_admission_request(payload):
             search_results.append({"query": query, "results": results})
 
     candidates = extract_candidates_with_deepseek(payload, search_results)
+    if not candidates:
+        candidates = extract_candidates_from_search_text(payload, search_results)
     if not candidates:
         return {
             "ok": False,
