@@ -28,7 +28,13 @@ def pick(source, *keys, default=""):
 
 
 def split_terms(value):
+    if isinstance(value, list):
+        value = " ".join(str(item) for item in value)
     return [item.strip() for item in re.split(r"[\s,，、/；;。\n]+", str(value or "")) if item.strip()]
+
+
+def terms_text(value):
+    return " ".join(split_terms(value))
 
 
 def only_favorite_cities(profile):
@@ -319,8 +325,8 @@ def extract_candidates_with_deepseek(payload, search_results):
         },
         "student": payload,
         "city_constraints": {
-            "preferredCities": (payload.get("profile") or {}).get("preferredCities") or (payload.get("profile") or {}).get("favoriteCities") or "",
-            "blockedCities": (payload.get("profile") or {}).get("blockedCities") or "",
+            "preferredCities": terms_text((payload.get("profile") or {}).get("preferredCities") or (payload.get("profile") or {}).get("favoriteCities")),
+            "blockedCities": terms_text((payload.get("profile") or {}).get("blockedCities")),
             "strictFavoriteCities": only_favorite_cities(payload.get("profile") or {}),
         },
         "search_results": search_results,
@@ -357,7 +363,7 @@ def extract_candidates_with_deepseek(payload, search_results):
 def extract_candidates_from_search_text(payload, search_results):
     rank = number(pick(payload, "rank", default=0))
     profile = payload.get("profile") or {}
-    preferred_majors = (profile.get("preferredMajors") or profile.get("favoriteMajors") or "").strip()
+    preferred_majors = terms_text(profile.get("preferredMajors") or profile.get("favoriteMajors"))
     major = re.split(r"[\s,，、/]+", preferred_majors)[0] if preferred_majors else ""
     candidates = []
     seen = set()
@@ -404,8 +410,8 @@ def built_in_admission_request(payload):
     score = pick(payload, "score", default="")
     rank = pick(payload, "rank", default="")
     profile = payload.get("profile") or {}
-    preferred_cities = (profile.get("preferredCities") or profile.get("favoriteCities") or "").strip()
-    preferred_majors = (profile.get("preferredMajors") or profile.get("favoriteMajors") or "").strip()
+    preferred_cities = terms_text(profile.get("preferredCities") or profile.get("favoriteCities"))
+    preferred_majors = terms_text(profile.get("preferredMajors") or profile.get("favoriteMajors"))
     reference_year = year
     try:
         if str(year).isdigit():
