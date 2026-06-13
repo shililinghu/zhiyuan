@@ -16,6 +16,8 @@
 5. 配置环境变量：
    - `ADMISSION_API_URL`：真实招生数据 API 地址
    - `ADMISSION_API_KEY`：真实 API 的 key/token，没有鉴权可不填
+   - `RESEARCH_API_URL`：网络调研/搜索汇总 API 地址
+   - `RESEARCH_API_KEY`：调研 API 的 key/token，没有鉴权可不填
 6. 部署完成后，Render 会给一个公网 URL。
 
 ## 后端调用真实 API 的约定
@@ -56,6 +58,56 @@ Content-Type: application/json
 
 也兼容 `data` / `records` 字段。
 
+## 网络调研汇总 API
+
+前端会把候选里的院校、专业、城市发给后端：
+
+```http
+POST /api/research/summary
+Content-Type: application/json
+```
+
+后端会转发到 `RESEARCH_API_URL`。请求体大致为：
+
+```json
+{
+  "items": {
+    "schools": ["郑州大学"],
+    "majors": ["计算机类"],
+    "cities": ["郑州"]
+  },
+  "student": {
+    "year": "2026",
+    "province": "河南",
+    "subjects": "物理+化学+生物",
+    "batch": "本科批"
+  },
+  "profile": {}
+}
+```
+
+调研 API 推荐返回：
+
+```json
+{
+  "summaries": {
+    "schools": [
+      {
+        "name": "郑州大学",
+        "summary": "院校定位、优势学科、校区、招生章程风险点等摘要。",
+        "sources": [
+          {"title": "学校官网", "url": "https://example.com"}
+        ]
+      }
+    ],
+    "majors": [],
+    "cities": []
+  }
+}
+```
+
+也兼容 `schoolSummaries` / `majorSummaries` / `citySummaries` 字段。
+
 ## 本地运行
 
 ```bash
@@ -73,6 +125,8 @@ http://127.0.0.1:4173
 ```powershell
 $env:ADMISSION_API_URL="https://your-api.example.com/search"
 $env:ADMISSION_API_KEY="your-token"
+$env:RESEARCH_API_URL="https://your-api.example.com/research"
+$env:RESEARCH_API_KEY="your-token"
 python api_server.py
 ```
 

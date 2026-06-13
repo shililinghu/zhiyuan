@@ -12,3 +12,7 @@ services:
         sync: false
       - key: ADMISSION_API_KEY
         sync: false
+      - key: RESEARCH_API_URL
+        sync: false
+      - key: RESEARCH_API_KEY
+        sync: false

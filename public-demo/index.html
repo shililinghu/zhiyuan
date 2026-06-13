@@ -355,6 +355,43 @@
       font-size: 13px;
     }
 
+    .summary-boxes {
+      display: grid;
+      gap: 12px;
+    }
+
+    .summary-box {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 12px;
+      background: #fbfcfd;
+    }
+
+    .summary-box h3 {
+      margin: 0 0 8px;
+      font-size: 14px;
+      letter-spacing: 0;
+    }
+
+    .summary-box p {
+      margin: 0;
+      color: #344054;
+      font-size: 13px;
+    }
+
+    .source-links {
+      margin-top: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .source-links a {
+      color: var(--blue);
+      font-size: 12px;
+      text-decoration: none;
+    }
+
     .muted {
       color: var(--muted);
       font-size: 13px;
@@ -455,6 +492,7 @@
         <a href="#preferences">自评口径</a>
         <a href="#candidates">候选数据</a>
         <a href="#results">评估结果</a>
+        <a href="#research">信息汇总</a>
         <a href="#risks">风险复核</a>
         <a href="#export">导出报告</a>
       </nav>
@@ -669,6 +707,30 @@
         </div>
 
         <div>
+          <section id="research">
+            <div class="section-head">
+              <h2>信息汇总</h2>
+              <button class="btn" id="researchBtn" type="button">汇总网络调研</button>
+            </div>
+            <div class="section-body">
+              <p class="muted" id="researchStatus" style="margin: 0 0 12px;">评估后会把候选里的院校、专业、城市发送给调研 API 汇总。</p>
+              <div class="summary-boxes">
+                <div class="summary-box">
+                  <h3>院校信息汇总</h3>
+                  <div id="schoolSummary"><p class="muted">暂无院校调研汇总。</p></div>
+                </div>
+                <div class="summary-box">
+                  <h3>专业信息汇总</h3>
+                  <div id="majorSummary"><p class="muted">暂无专业调研汇总。</p></div>
+                </div>
+                <div class="summary-box">
+                  <h3>城市信息汇总</h3>
+                  <div id="citySummary"><p class="muted">暂无城市调研汇总。</p></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <section id="risks">
             <div class="section-head">
               <h2>风险复核</h2>
@@ -756,6 +818,93 @@
       const el = document.getElementById("dataStatus");
       el.textContent = message;
       el.style.color = tone === "error" ? "var(--red)" : tone === "ok" ? "var(--green)" : "var(--muted)";
+    }
+
+    function setResearchStatus(message, tone = "normal") {
+      const el = document.getElementById("researchStatus");
+      el.textContent = message;
+      el.style.color = tone === "error" ? "var(--red)" : tone === "ok" ? "var(--green)" : "var(--muted)";
+    }
+
+    function uniqueValues(rows, key, limit = 12) {
+      return Array.from(new Set(rows.map(row => row[key]).filter(Boolean))).slice(0, limit);
+    }
+
+    function renderSummaryList(targetId, items, emptyText) {
+      const el = document.getElementById(targetId);
+      if (!items || !items.length) {
+        el.innerHTML = `<p class="muted">${escapeHtml(emptyText)}</p>`;
+        return;
+      }
+      el.innerHTML = items.map(item => {
+        const sources = Array.isArray(item.sources) ? item.sources : [];
+        const links = sources
+          .filter(Boolean)
+          .slice(0, 4)
+          .map((source, index) => {
+            const href = typeof source === "string" ? source : source.url;
+            const label = typeof source === "string" ? `来源 ${index + 1}` : (source.title || source.name || `来源 ${index + 1}`);
+            return href ? `<a href="${escapeHtml(href)}" target="_blank" rel="noreferrer">${escapeHtml(label)}</a>` : "";
+          })
+          .filter(Boolean)
+          .join("");
+        return `
+          <div style="margin-bottom: 12px;">
+            <p><strong>${escapeHtml(item.name || "未命名")}</strong></p>
+            <p>${escapeHtml(item.summary || "暂无摘要。")}</p>
+            ${links ? `<div class="source-links">${links}</div>` : ""}
+          </div>
+        `;
+      }).join("");
+    }
+
+    async function loadResearchSummary(results = null, form = null) {
+      const rows = results || window.__latestResults || [];
+      const currentForm = form || getForm();
+      if (!rows.length) {
+        setResearchStatus("没有候选数据，无法汇总院校/专业/城市信息。", "error");
+        return null;
+      }
+      const payload = {
+        items: {
+          schools: uniqueValues(rows, "school"),
+          majors: uniqueValues(rows, "major"),
+          cities: uniqueValues(rows, "city")
+        },
+        student: {
+          year: currentForm.year,
+          province: currentForm.province,
+          subjects: currentForm.subjects,
+          batch: currentForm.batch
+        },
+        profile: currentForm.profile
+      };
+      setResearchStatus("正在调用网络调研 API 汇总院校、专业和城市信息 ...");
+      try {
+        const response = await fetch("/api/research/summary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error || `HTTP ${response.status}`);
+        }
+        const summaries = data.summaries || {};
+        renderSummaryList("schoolSummary", summaries.schools, "暂无院校调研汇总。");
+        renderSummaryList("majorSummary", summaries.majors, "暂无专业调研汇总。");
+        renderSummaryList("citySummary", summaries.cities, "暂无城市调研汇总。");
+        window.__latestResearch = summaries;
+        setResearchStatus("网络调研汇总完成。", "ok");
+        window.__latestReport = buildReport(window.__latestResults || [], currentForm, window.__latestRisks || []);
+        return summaries;
+      } catch (error) {
+        setResearchStatus(`网络调研 API 调用失败：${error.message}`, "error");
+        renderSummaryList("schoolSummary", [], "调研 API 未返回院校汇总。");
+        renderSummaryList("majorSummary", [], "调研 API 未返回专业汇总。");
+        renderSummaryList("citySummary", [], "调研 API 未返回城市汇总。");
+        return null;
+      }
     }
 
     function apiPayload() {
@@ -940,7 +1089,10 @@
       riskItems.push("API 或导入数据的年份、口径和来源需自行确认。");
       riskList.innerHTML = riskItems.map(item => `<li>${escapeHtml(item)}</li>`).join("");
 
+      window.__latestResults = results;
+      window.__latestRisks = riskItems;
       window.__latestReport = buildReport(results, form, riskItems);
+      loadResearchSummary(results, form);
     }
 
     function renderUserRating(row) {
@@ -954,6 +1106,14 @@
     }
 
     function buildReport(results, form, risks) {
+      const research = window.__latestResearch || { schools: [], majors: [], cities: [] };
+      const researchLines = (title, items) => [
+        `## ${title}`,
+        ...(items && items.length
+          ? items.map(item => `- ${item.name || "未命名"}：${item.summary || "暂无摘要。"}${Array.isArray(item.sources) && item.sources.length ? ` 来源：${item.sources.map(source => typeof source === "string" ? source : (source.url || source.title || "")).filter(Boolean).join("；")}` : ""}`)
+          : ["- 暂无汇总。"]),
+        ""
+      ];
       const lines = [
         "# 志愿方案复核报告",
         "",
@@ -986,6 +1146,9 @@
         "|---|---|---|---|---|---:|---:|---|---|",
         ...results.map(row => `| ${row.label} | ${row.school} | ${row.group} | ${row.major} | ${row.city} | ${row.minScore} | ${row.minRank} | ${[row.userSchoolRating && `院校:${row.userSchoolRating}`, row.userMajorRating && `专业:${row.userMajorRating}`, row.userCityRating && `城市:${row.userCityRating}`, row.userNote && `备注:${row.userNote}`].filter(Boolean).join("；") || "待用户填写"} | ${row.risks.join("；") || "暂无明显风险"} |`),
         "",
+        ...researchLines("院校信息汇总", research.schools),
+        ...researchLines("专业信息汇总", research.majors),
+        ...researchLines("城市信息汇总", research.cities),
         "## 风险复核",
         ...risks.map(item => `- ${item}`),
         "",
@@ -1031,9 +1194,18 @@
       }, 1200);
     });
 
+    document.getElementById("researchBtn").addEventListener("click", () => {
+      evaluate();
+      document.getElementById("research").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
     document.getElementById("clearBtn").addEventListener("click", () => {
       document.getElementById("candidateText").value = "";
       setDataStatus("候选数据已清空。", "normal");
+      setResearchStatus("候选数据已清空，信息汇总已重置。", "normal");
+      renderSummaryList("schoolSummary", [], "暂无院校调研汇总。");
+      renderSummaryList("majorSummary", [], "暂无专业调研汇总。");
+      renderSummaryList("citySummary", [], "暂无城市调研汇总。");
       evaluate();
     });
 

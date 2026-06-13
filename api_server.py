@@ -78,6 +78,68 @@ def provider_request(payload):
     return {"ok": True, "source": api_url, "count": len(candidates), "candidates": candidates}, 200
 
 
+def normalize_summary_item(item, fallback_name=""):
+    if isinstance(item, str):
+        return {"name": fallback_name, "summary": item, "sources": []}
+    if not isinstance(item, dict):
+        return {"name": fallback_name, "summary": "", "sources": []}
+    sources = item.get("sources") or item.get("links") or item.get("citations") or []
+    if isinstance(sources, str):
+        sources = [sources]
+    if not isinstance(sources, list):
+        sources = []
+    return {
+        "name": pick(item, "name", "title", "school", "major", "city", default=fallback_name),
+        "summary": pick(item, "summary", "content", "text", "description", default=""),
+        "sources": sources,
+    }
+
+
+def normalize_summary_list(value, fallback_names):
+    if isinstance(value, dict):
+        return [normalize_summary_item(v, k) for k, v in value.items()]
+    if isinstance(value, list):
+        return [normalize_summary_item(item, fallback_names[i] if i < len(fallback_names) else "") for i, item in enumerate(value)]
+    return []
+
+
+def research_request(payload):
+    api_url = os.environ.get("RESEARCH_API_URL", "").strip()
+    api_key = os.environ.get("RESEARCH_API_KEY", "").strip()
+    if not api_url:
+        return {
+            "ok": False,
+            "error": "Research API is not configured. Set RESEARCH_API_URL and, if needed, RESEARCH_API_KEY.",
+            "summaries": {"schools": [], "majors": [], "cities": []},
+        }, 503
+
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    req = urlrequest.Request(api_url, data=body, headers=headers, method="POST")
+
+    try:
+        with urlrequest.urlopen(req, timeout=45) as response:
+            raw = response.read().decode("utf-8")
+            data = json.loads(raw) if raw else {}
+    except HTTPError as exc:
+        return {"ok": False, "error": f"Research API returned HTTP {exc.code}", "summaries": {"schools": [], "majors": [], "cities": []}}, 502
+    except URLError as exc:
+        return {"ok": False, "error": f"Research API is unavailable: {exc.reason}", "summaries": {"schools": [], "majors": [], "cities": []}}, 502
+    except json.JSONDecodeError:
+        return {"ok": False, "error": "Research API did not return valid JSON.", "summaries": {"schools": [], "majors": [], "cities": []}}, 502
+
+    summaries = data.get("summaries", data)
+    items = payload.get("items", {})
+    result = {
+        "schools": normalize_summary_list(summaries.get("schools") or summaries.get("schoolSummaries") or [], items.get("schools", [])),
+        "majors": normalize_summary_list(summaries.get("majors") or summaries.get("majorSummaries") or [], items.get("majors", [])),
+        "cities": normalize_summary_list(summaries.get("cities") or summaries.get("citySummaries") or [], items.get("cities", [])),
+    }
+    return {"ok": True, "source": api_url, "summaries": result}, 200
+
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -98,7 +160,8 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/api/health":
             configured = bool(os.environ.get("ADMISSION_API_URL", "").strip())
-            return self.send_json(200, {"ok": True, "admissionApiConfigured": configured})
+            research_configured = bool(os.environ.get("RESEARCH_API_URL", "").strip())
+            return self.send_json(200, {"ok": True, "admissionApiConfigured": configured, "researchApiConfigured": research_configured})
         return super().do_GET()
 
     def do_POST(self):
@@ -108,6 +171,13 @@ class Handler(SimpleHTTPRequestHandler):
             except json.JSONDecodeError:
                 return self.send_json(400, {"ok": False, "error": "请求体不是合法 JSON。", "candidates": []})
             response, status = provider_request(payload)
+            return self.send_json(status, response)
+        if self.path == "/api/research/summary":
+            try:
+                payload = self.read_json()
+            except json.JSONDecodeError:
+                return self.send_json(400, {"ok": False, "error": "Request body is not valid JSON.", "summaries": {"schools": [], "majors": [], "cities": []}})
+            response, status = research_request(payload)
             return self.send_json(status, response)
         return self.send_json(404, {"ok": False, "error": "API endpoint not found"})
 
