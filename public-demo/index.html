@@ -1,0 +1,1075 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>高考志愿辅助填报试用版</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --ink: #17202a;
+      --muted: #667085;
+      --line: #d9dee7;
+      --brand: #0f766e;
+      --brand-dark: #115e59;
+      --red: #b42318;
+      --amber: #b54708;
+      --green: #027a48;
+      --blue: #175cd3;
+      --shadow: 0 12px 32px rgba(16, 24, 40, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      line-height: 1.5;
+    }
+
+    button, input, select, textarea {
+      font: inherit;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+    }
+
+    aside {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 24px 20px;
+      background: #10201d;
+      color: #f7fbfa;
+      overflow: auto;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 28px;
+    }
+
+    .mark {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 7px;
+      background: #dff8f3;
+      color: var(--brand-dark);
+      font-weight: 800;
+    }
+
+    .brand strong {
+      display: block;
+      font-size: 16px;
+    }
+
+    .brand span {
+      display: block;
+      color: #bdd1cd;
+      font-size: 12px;
+    }
+
+    nav {
+      display: grid;
+      gap: 8px;
+    }
+
+    nav a {
+      color: #dce8e5;
+      text-decoration: none;
+      padding: 10px 12px;
+      border-radius: 7px;
+      font-size: 14px;
+    }
+
+    nav a:hover, nav a.active {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+
+    .note {
+      margin-top: 26px;
+      padding: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 7px;
+      color: #d7e4e1;
+      font-size: 12px;
+    }
+
+    main {
+      padding: 28px;
+      overflow: hidden;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 22px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 26px;
+      letter-spacing: 0;
+    }
+
+    .sub {
+      margin: 6px 0 0;
+      color: var(--muted);
+      max-width: 780px;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      border-radius: 7px;
+      padding: 9px 13px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .btn.primary {
+      border-color: var(--brand);
+      background: var(--brand);
+      color: #fff;
+    }
+
+    .btn.primary:hover { background: var(--brand-dark); }
+    .btn:hover { border-color: #aab3c0; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      margin-bottom: 18px;
+      overflow: hidden;
+    }
+
+    .section-head {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 16px;
+      letter-spacing: 0;
+    }
+
+    .section-body {
+      padding: 18px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: #344054;
+      font-size: 13px;
+      min-width: 0;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid #cfd6e1;
+      border-radius: 7px;
+      padding: 9px 10px;
+      background: #fff;
+      color: var(--ink);
+      outline: none;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+    }
+
+    textarea {
+      min-height: 110px;
+      resize: vertical;
+    }
+
+    .range-row {
+      display: grid;
+      grid-template-columns: 74px 1fr 54px;
+      gap: 10px;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    input[type="range"] {
+      padding: 0;
+      accent-color: var(--brand);
+    }
+
+    .switches {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: #344054;
+      background: #fbfcfd;
+    }
+
+    .check input {
+      width: 16px;
+      height: 16px;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 920px;
+      background: #fff;
+    }
+
+    th, td {
+      padding: 10px 11px;
+      border-bottom: 1px solid #edf0f5;
+      text-align: left;
+      font-size: 13px;
+      vertical-align: top;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      background: #f8fafc;
+      color: #475467;
+      font-weight: 700;
+      z-index: 1;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-width: 42px;
+      justify-content: center;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 12px;
+    }
+
+    .tag.rush { color: var(--blue); background: #eaf1ff; }
+    .tag.match { color: var(--green); background: #e8f5ee; }
+    .tag.safe { color: var(--amber); background: #fff3e6; }
+    .tag.warn { color: var(--red); background: #feeceb; }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .kpi {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      box-shadow: var(--shadow);
+    }
+
+    .kpi span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .kpi strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 24px;
+    }
+
+    .list {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .list li {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 10px 12px;
+      background: #fbfcfd;
+      font-size: 13px;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      background: #ecfdf3;
+      color: #027a48;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .import-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .footer-warning {
+      margin: 20px 0 0;
+      padding: 14px 16px;
+      border-left: 4px solid var(--amber);
+      background: #fffbf5;
+      color: #7a3d00;
+      border-radius: 7px;
+      font-size: 13px;
+    }
+
+    @media (max-width: 980px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      aside {
+        position: relative;
+        height: auto;
+      }
+
+      nav {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .kpis {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .topbar {
+        display: grid;
+      }
+
+      .actions {
+        justify-content: flex-start;
+      }
+    }
+
+    @media (max-width: 640px) {
+      main {
+        padding: 18px;
+      }
+
+      .form-grid, .switches, .kpis {
+        grid-template-columns: 1fr;
+      }
+
+      nav {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <div class="brand">
+        <div class="mark">志</div>
+        <div>
+          <strong>志愿辅助工作台</strong>
+          <span>API 驱动，不保存数据</span>
+        </div>
+      </div>
+      <nav>
+        <a href="#student" class="active">考生信息</a>
+        <a href="#profile">个人画像</a>
+        <a href="#preferences">自评口径</a>
+        <a href="#candidates">候选数据</a>
+        <a href="#results">评估结果</a>
+        <a href="#risks">风险复核</a>
+        <a href="#export">导出报告</a>
+      </nav>
+      <div class="note">
+        本页面用于连接真实招生数据并生成客观复核结果。正式填报前，请以省考试院系统、高校招生章程和官方招生计划为准。
+      </div>
+    </aside>
+
+    <main>
+      <div class="topbar">
+        <div>
+          <h1>高考志愿辅助填报工作台</h1>
+          <p class="sub">输入考生基础信息，载入候选院校/专业数据，系统只做客观定位、信息整理和风险提示；院校、专业、城市的主观评分与最终排序由用户自己决定。</p>
+        </div>
+        <div class="actions">
+          <button class="btn primary" id="calcBtn" type="button">开始评估</button>
+        </div>
+      </div>
+
+      <div class="kpis" id="kpis">
+        <div class="kpi"><span>候选数量</span><strong id="totalKpi">0</strong></div>
+        <div class="kpi"><span>冲</span><strong id="rushKpi">0</strong></div>
+        <div class="kpi"><span>稳</span><strong id="matchKpi">0</strong></div>
+        <div class="kpi"><span>保</span><strong id="safeKpi">0</strong></div>
+      </div>
+
+      <div class="grid">
+        <div>
+          <section id="student">
+            <div class="section-head">
+              <h2>考生信息</h2>
+              <span class="muted">最少填完这些字段即可试算</span>
+            </div>
+            <div class="section-body">
+              <div class="form-grid">
+                <label>年份
+                  <input id="year" type="number" value="2026" min="2020" max="2030" />
+                </label>
+                <label>省份
+                  <input id="province" value="河南" />
+                </label>
+                <label>科类 / 选科组合
+                  <input id="subjects" value="物理+化学+生物" />
+                </label>
+                <label>志愿模式
+                  <select id="mode">
+                    <option>院校+专业组</option>
+                    <option>专业+院校</option>
+                    <option>旧高考传统志愿</option>
+                    <option>暂不确定</option>
+                  </select>
+                </label>
+                <label>批次
+                  <input id="batch" value="本科批" />
+                </label>
+                <label>高考总分
+                  <input id="score" type="number" value="586" />
+                </label>
+                <label>全省位次
+                  <input id="rank" type="number" value="31800" />
+                </label>
+                <label>批次省控线
+                  <input id="controlLine" type="number" value="510" />
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <section id="profile">
+            <div class="section-head">
+              <h2>个人偏好画像</h2>
+              <span class="muted">用于调整排序和风险提示</span>
+            </div>
+            <div class="section-body">
+              <div class="form-grid">
+                <label>最喜欢的城市
+                  <input id="favoriteCities" value="武汉,杭州,深圳,郑州" placeholder="用逗号分隔，如：杭州,南京,成都" />
+                </label>
+                <label>不能接受的城市
+                  <input id="blockedCities" value="" placeholder="用逗号分隔，如：太远城市、气候不适城市" />
+                </label>
+                <label>最感兴趣的专业方向
+                  <input id="favoriteMajors" value="计算机,软件,人工智能,电子信息" placeholder="如：计算机,临床医学,法学" />
+                </label>
+                <label>不能接受的专业方向
+                  <input id="blockedMajors" value="" placeholder="如：土木,化工,护理" />
+                </label>
+                <label>职业期待
+                  <select id="careerGoal">
+                    <option>技术研发/互联网</option>
+                    <option>医学/健康</option>
+                    <option>体制内/稳定就业</option>
+                    <option>金融/商科</option>
+                    <option>暂不确定</option>
+                  </select>
+                </label>
+                <label>家庭可承受费用
+                  <select id="budget">
+                    <option>优先公办普通收费</option>
+                    <option>可接受中等学费</option>
+                    <option>可接受高收费/中外合作</option>
+                  </select>
+                </label>
+                <label>离家距离偏好
+                  <select id="distancePreference">
+                    <option>省内优先</option>
+                    <option>周边省份可接受</option>
+                    <option>全国都可以</option>
+                  </select>
+                </label>
+                <label>专业优先级
+                  <select id="majorPriority">
+                    <option>专业优先</option>
+                    <option>院校优先</option>
+                    <option>城市优先</option>
+                    <option>均衡考虑</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <section id="preferences">
+            <div class="section-head">
+              <h2>用户自评口径</h2>
+              <span class="muted">AI 不代打分</span>
+            </div>
+            <div class="section-body">
+              <label>我的排序原则
+                <textarea id="userScoringRule" placeholder="例如：专业优先，其次城市；不接受高收费；省内优先但武汉/杭州/南京也可以。">专业优先，其次城市；不接受高收费；最终顺序需要本人确认。</textarea>
+              </label>
+              <div class="weights" style="margin-top: 14px;">
+                <div class="range-row">
+                  <span>院校</span>
+                  <input id="schoolPriority" type="range" min="0" max="100" value="35" />
+                  <strong id="schoolPriorityValue">35%</strong>
+                </div>
+                <div class="range-row">
+                  <span>专业</span>
+                  <input id="majorPriorityPercent" type="range" min="0" max="100" value="45" />
+                  <strong id="majorPriorityPercentValue">45%</strong>
+                </div>
+                <div class="range-row">
+                  <span>城市</span>
+                  <input id="cityPriority" type="range" min="0" max="100" value="20" />
+                  <strong id="cityPriorityValue">20%</strong>
+                </div>
+              </div>
+              <p class="muted" id="priorityHint">当前合计 100%。这是用户自填优先度，只记录偏好，不参与 AI 自动评分。</p>
+              <p class="muted">下方候选数据支持用户自己填写“用户院校评价、用户专业评价、用户城市评价、个人备注”。系统不会自动生成综合分。</p>
+              <div class="switches">
+                <label class="check"><input id="allowOutProvince" type="checkbox" checked /> 接受省外</label>
+                <label class="check"><input id="allowPrivate" type="checkbox" /> 接受民办/独立学院</label>
+                <label class="check"><input id="allowCoop" type="checkbox" /> 接受中外合作/高收费</label>
+                <label class="check"><input id="allowTransfer" type="checkbox" checked /> 接受调剂</label>
+              </div>
+            </div>
+          </section>
+
+          <section id="candidates">
+            <div class="section-head">
+              <h2>候选数据</h2>
+              <span class="muted">调用真实 API，或导入官方 CSV</span>
+            </div>
+            <div class="section-body">
+              <div class="import-row">
+                <input id="csvFile" class="hidden" type="file" accept=".csv,text/csv" />
+                <button class="btn primary" id="loadDataBtn" type="button">调用真实数据 API</button>
+                <button class="btn" id="uploadBtn" type="button">导入官方 CSV</button>
+                <button class="btn" id="clearBtn" type="button">清空</button>
+                <span class="muted">字段：院校, 专业组, 专业, 城市, 最低分, 最低位次, 计划, 性质, 用户院校评价, 用户专业评价, 用户城市评价, 个人备注</span>
+              </div>
+              <p class="muted" id="dataStatus" style="margin: 10px 0 0;">尚未连接真实数据。点击“调用真实数据 API”，或导入官方 CSV。</p>
+              <label style="margin-top: 14px;">候选数据
+                <textarea id="candidateText" spellcheck="false"></textarea>
+              </label>
+            </div>
+          </section>
+
+          <section id="results">
+            <div class="section-head">
+              <h2>评估结果</h2>
+              <span class="muted" id="resultHint">点击“开始评估”生成</span>
+            </div>
+            <div class="section-body">
+              <div style="margin-bottom: 12px;">
+                <span class="status-pill" id="evalStatus">等待评估</span>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>标签</th>
+                      <th>院校</th>
+                      <th>专业组/专业</th>
+                      <th>城市</th>
+                      <th>最低分</th>
+                      <th>最低位次</th>
+                      <th>线差</th>
+                      <th>位次差</th>
+                      <th>用户自评</th>
+                      <th>风险提示</th>
+                    </tr>
+                  </thead>
+                  <tbody id="resultBody">
+                    <tr><td colspan="10" class="muted">暂无结果</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div>
+          <section id="risks">
+            <div class="section-head">
+              <h2>风险复核</h2>
+              <span class="muted">输出前必须查看</span>
+            </div>
+            <div class="section-body">
+              <ul class="list" id="riskList">
+                <li>尚未评估。请先载入候选数据并点击“开始评估”。</li>
+              </ul>
+            </div>
+          </section>
+
+          <section>
+            <div class="section-head">
+              <h2>待人工确认</h2>
+              <span class="muted">最终填报前逐项核对</span>
+            </div>
+            <div class="section-body">
+              <ul class="list" id="confirmList">
+                <li>高校招生章程、专业组内专业、选科要求、体检/单科限制。</li>
+                <li>省考试院当年招生计划、投档规则和正式志愿数量。</li>
+                <li>是否服从调剂、家庭费用承受边界、城市和专业底线。</li>
+              </ul>
+            </div>
+          </section>
+
+          <section id="export">
+            <div class="section-head">
+              <h2>导出报告</h2>
+              <span class="muted">Markdown 文本</span>
+            </div>
+            <div class="section-body">
+              <button class="btn primary" id="downloadBtn" type="button">下载复核报告</button>
+              <p class="footer-warning">提醒：本试用版结果只用于理解流程和辅助筛选，不构成录取承诺。最终填报前，以省考试院系统和高校招生章程为准。</p>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const priorityIds = [
+      ["schoolPriority", "schoolPriorityValue"],
+      ["majorPriorityPercent", "majorPriorityPercentValue"],
+      ["cityPriority", "cityPriorityValue"]
+    ];
+
+    priorityIds.forEach(([inputId, valueId]) => {
+      const input = document.getElementById(inputId);
+      input.addEventListener("input", () => {
+        document.getElementById(valueId).textContent = input.value + "%";
+        updatePriorityHint();
+      });
+    });
+
+    function updatePriorityHint() {
+      const total = priorityIds.reduce((sum, [inputId]) => sum + Number(document.getElementById(inputId).value), 0);
+      const hint = document.getElementById("priorityHint");
+      hint.textContent = `当前合计 ${total}%。这是用户自填优先度，只记录偏好，不参与 AI 自动评分。`;
+      hint.style.color = total === 100 ? "var(--green)" : "var(--amber)";
+    }
+
+    function rowsToCsv(rows) {
+      const header = "院校,专业组,专业,城市,最低分,最低位次,计划,性质,用户院校评价,用户专业评价,用户城市评价,个人备注";
+      return [header, ...rows.map(row => Array.isArray(row)
+        ? row.join(",")
+        : [row.school, row.group, row.major, row.city, row.minScore, row.minRank, row.plan, row.type, row.userSchoolRating || "", row.userMajorRating || "", row.userCityRating || "", row.userNote || ""].join(",")
+      )].join("\n");
+    }
+
+    function splitList(value) {
+      return String(value || "")
+        .split(/[，,\n、]/)
+        .map(item => item.trim())
+        .filter(Boolean);
+    }
+
+    function includesAny(text, keywords) {
+      const value = String(text || "");
+      return keywords.some(keyword => value.includes(keyword));
+    }
+
+    function setDataStatus(message, tone = "normal") {
+      const el = document.getElementById("dataStatus");
+      el.textContent = message;
+      el.style.color = tone === "error" ? "var(--red)" : tone === "ok" ? "var(--green)" : "var(--muted)";
+    }
+
+    function apiPayload() {
+      const form = getForm();
+      return {
+        year: form.year,
+        province: form.province,
+        subjects: form.subjects,
+        mode: form.mode,
+        batch: form.batch,
+        score: form.score,
+        rank: form.rank,
+        controlLine: form.controlLine,
+        profile: form.profile
+      };
+    }
+
+    async function loadRealData() {
+      setDataStatus("正在调用真实数据 API ...");
+      try {
+        const response = await fetch("/api/admissions/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(apiPayload())
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.error || `HTTP ${response.status}`);
+        }
+        document.getElementById("candidateText").value = rowsToCsv(payload.candidates || []);
+        setDataStatus(`真实数据 API 调用成功，载入 ${payload.count || 0} 条候选数据。`, "ok");
+        return payload.candidates || [];
+      } catch (error) {
+        setDataStatus(`真实数据 API 调用失败：${error.message}`, "error");
+        return [];
+      }
+    }
+
+    function parseCsv(text) {
+      return text
+        .trim()
+        .split(/\r?\n/)
+        .filter(Boolean)
+        .slice(1)
+        .map(line => line.split(",").map(cell => cell.trim()))
+        .filter(row => row.length >= 8)
+        .map(row => ({
+          school: row[0],
+          group: row[1],
+          major: row[2],
+          city: row[3],
+          minScore: Number(row[4]),
+          minRank: Number(row[5]),
+          plan: Number(row[6] || 0),
+          type: row[7] || "",
+          userSchoolRating: row[8] || "",
+          userMajorRating: row[9] || "",
+          userCityRating: row[10] || "",
+          userNote: row[11] || ""
+        }))
+        .filter(row => row.school && Number.isFinite(row.minScore) && Number.isFinite(row.minRank));
+    }
+
+    function classify(scoreDiff, rankDiffRatio) {
+      if (scoreDiff < -6 || rankDiffRatio < -0.08) return "冲";
+      if (scoreDiff <= 12 && rankDiffRatio <= 0.22) return "稳";
+      return "保";
+    }
+
+    function tagClass(label) {
+      if (label === "冲") return "rush";
+      if (label === "稳") return "match";
+      if (label === "保") return "safe";
+      return "warn";
+    }
+
+    function getForm() {
+      return {
+        year: document.getElementById("year").value,
+        province: document.getElementById("province").value,
+        subjects: document.getElementById("subjects").value,
+        mode: document.getElementById("mode").value,
+        batch: document.getElementById("batch").value,
+        score: Number(document.getElementById("score").value),
+        rank: Number(document.getElementById("rank").value),
+        controlLine: Number(document.getElementById("controlLine").value),
+        userScoringRule: document.getElementById("userScoringRule").value,
+        userPriority: {
+          school: Number(document.getElementById("schoolPriority").value),
+          major: Number(document.getElementById("majorPriorityPercent").value),
+          city: Number(document.getElementById("cityPriority").value)
+        },
+        allowOutProvince: document.getElementById("allowOutProvince").checked,
+        allowPrivate: document.getElementById("allowPrivate").checked,
+        allowCoop: document.getElementById("allowCoop").checked,
+        allowTransfer: document.getElementById("allowTransfer").checked,
+        profile: {
+          favoriteCities: splitList(document.getElementById("favoriteCities").value),
+          blockedCities: splitList(document.getElementById("blockedCities").value),
+          favoriteMajors: splitList(document.getElementById("favoriteMajors").value),
+          blockedMajors: splitList(document.getElementById("blockedMajors").value),
+          careerGoal: document.getElementById("careerGoal").value,
+          budget: document.getElementById("budget").value,
+          distancePreference: document.getElementById("distancePreference").value,
+          majorPriority: document.getElementById("majorPriority").value
+        }
+      };
+    }
+
+    function evaluate() {
+      const form = getForm();
+      const rows = parseCsv(document.getElementById("candidateText").value);
+      if (!rows.length) {
+        renderResults([], form, "没有可评估数据，请先调用真实数据 API 或导入官方 CSV。");
+        return { results: [], form };
+      }
+      const results = rows.map(row => {
+        const scoreDiff = form.score - row.minScore;
+        const rankDiff = row.minRank - form.rank;
+        const rankDiffRatio = rankDiff / Math.max(form.rank, 1);
+        const label = classify(scoreDiff, rankDiffRatio);
+        const risks = [];
+        if (label === "冲") risks.push("波动风险较高");
+        if (row.type.includes("民办") && !form.allowPrivate) risks.push("民办需确认");
+        if (row.type.includes("中外") && !form.allowCoop) risks.push("高收费需确认");
+        if (form.profile.budget === "优先公办普通收费" && (row.type.includes("民办") || row.type.includes("中外"))) risks.push("费用边界需确认");
+        if (includesAny(row.city, form.profile.blockedCities)) risks.push("命中不能接受城市");
+        if (includesAny(row.major, form.profile.blockedMajors)) risks.push("命中不能接受专业");
+        if (form.profile.distancePreference === "省内优先" && !["郑州", "开封", "洛阳"].includes(row.city)) risks.push("不符合省内优先");
+        if (!form.allowTransfer) risks.push("不服从调剂需复核退档风险");
+        if (row.plan < 30) risks.push("计划数偏少");
+        return { ...row, scoreDiff, rankDiff, rankDiffRatio, label, risks };
+      });
+
+      renderResults(results, form, "已重新评估");
+      return { results, form };
+    }
+
+    function renderResults(results, form, statusText = "已评估") {
+      const body = document.getElementById("resultBody");
+      const counts = { "冲": 0, "稳": 0, "保": 0 };
+      results.forEach(row => counts[row.label]++);
+      document.getElementById("totalKpi").textContent = results.length;
+      document.getElementById("rushKpi").textContent = counts["冲"];
+      document.getElementById("matchKpi").textContent = counts["稳"];
+      document.getElementById("safeKpi").textContent = counts["保"];
+      document.getElementById("resultHint").textContent = results.length ? "按导入顺序展示，最终排序待用户决定" : "没有可评估数据";
+      document.getElementById("evalStatus").textContent = results.length
+        ? `${statusText}：${new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
+        : statusText;
+
+      if (!results.length) {
+        body.innerHTML = '<tr><td colspan="10" class="muted">暂无结果</td></tr>';
+        document.getElementById("riskList").innerHTML = `<li>${escapeHtml(statusText)}</li>`;
+        return;
+      }
+
+      body.innerHTML = results.map(row => `
+        <tr>
+          <td><span class="tag ${tagClass(row.label)}">${row.label}</span></td>
+          <td>${escapeHtml(row.school)}<br><span class="muted">${escapeHtml(row.type)}</span></td>
+          <td>${escapeHtml(row.group)}<br>${escapeHtml(row.major)}</td>
+          <td>${escapeHtml(row.city)}</td>
+          <td>${row.minScore}</td>
+          <td>${row.minRank.toLocaleString()}</td>
+          <td>${row.scoreDiff >= 0 ? "+" : ""}${row.scoreDiff}</td>
+          <td>${row.rankDiff >= 0 ? "+" : ""}${row.rankDiff.toLocaleString()}</td>
+          <td>${renderUserRating(row)}</td>
+          <td>${row.risks.length ? row.risks.map(escapeHtml).join("；") : "暂无明显风险"}</td>
+        </tr>
+      `).join("");
+
+      const riskList = document.getElementById("riskList");
+      const riskItems = [];
+      if (!form.allowTransfer) riskItems.push("用户当前选择不接受调剂，需重点复核退档风险。");
+      if (counts["冲"] > counts["稳"]) riskItems.push("冲档数量高于稳档数量，建议补充稳区间候选。");
+      if (counts["保"] < 2) riskItems.push("保底候选偏少，建议补充更低位次区间选项。");
+      if (results.some(row => row.risks.includes("计划数偏少"))) riskItems.push("部分专业计划数偏少，往年波动可能更大。");
+      if (results.some(row => row.risks.includes("命中不能接受城市") || row.risks.includes("命中不能接受专业"))) riskItems.push("部分候选命中个人底线，建议从最终志愿表中剔除或单独确认。");
+      if (!form.profile.favoriteCities.length || !form.profile.favoriteMajors.length) riskItems.push("个人偏好画像不完整，城市和专业排序的参考价值会下降。");
+      riskItems.push("所有招生章程、选科要求、专业组内专业、体检/单科限制均需人工核验。");
+      riskItems.push("API 或导入数据的年份、口径和来源需自行确认。");
+      riskList.innerHTML = riskItems.map(item => `<li>${escapeHtml(item)}</li>`).join("");
+
+      window.__latestReport = buildReport(results, form, riskItems);
+    }
+
+    function renderUserRating(row) {
+      const parts = [
+        row.userSchoolRating ? `院校：${escapeHtml(row.userSchoolRating)}` : "",
+        row.userMajorRating ? `专业：${escapeHtml(row.userMajorRating)}` : "",
+        row.userCityRating ? `城市：${escapeHtml(row.userCityRating)}` : "",
+        row.userNote ? `备注：${escapeHtml(row.userNote)}` : ""
+      ].filter(Boolean);
+      return parts.length ? parts.join("<br>") : '<span class="muted">待用户填写</span>';
+    }
+
+    function buildReport(results, form, risks) {
+      const lines = [
+        "# 志愿方案复核报告",
+        "",
+        `生成时间：${new Date().toLocaleString("zh-CN")}`,
+        "",
+        "## 考生信息",
+        `- 年份：${form.year}`,
+        `- 省份：${form.province}`,
+        `- 科类/选科：${form.subjects}`,
+        `- 志愿模式：${form.mode}`,
+        `- 批次：${form.batch}`,
+        `- 高考总分：${form.score}`,
+        `- 全省位次：${form.rank}`,
+        `- 省控线：${form.controlLine}`,
+        `- 用户自评口径：${form.userScoringRule || "未填写"}`,
+        `- 用户自填优先度：院校 ${form.userPriority.school}% / 专业 ${form.userPriority.major}% / 城市 ${form.userPriority.city}%（仅记录，不参与 AI 自动评分）`,
+        "",
+        "## 个人偏好画像",
+        `- 喜欢城市：${form.profile.favoriteCities.join("、") || "未填写"}`,
+        `- 不接受城市：${form.profile.blockedCities.join("、") || "未填写"}`,
+        `- 感兴趣专业：${form.profile.favoriteMajors.join("、") || "未填写"}`,
+        `- 不接受专业：${form.profile.blockedMajors.join("、") || "未填写"}`,
+        `- 职业期待：${form.profile.careerGoal}`,
+        `- 费用边界：${form.profile.budget}`,
+        `- 距离偏好：${form.profile.distancePreference}`,
+        `- 排序偏好：${form.profile.majorPriority}`,
+        "",
+        "## 候选结果",
+        "| 标签 | 院校 | 专业组 | 专业 | 城市 | 最低分 | 最低位次 | 用户自评 | 风险 |",
+        "|---|---|---|---|---|---:|---:|---|---|",
+        ...results.map(row => `| ${row.label} | ${row.school} | ${row.group} | ${row.major} | ${row.city} | ${row.minScore} | ${row.minRank} | ${[row.userSchoolRating && `院校:${row.userSchoolRating}`, row.userMajorRating && `专业:${row.userMajorRating}`, row.userCityRating && `城市:${row.userCityRating}`, row.userNote && `备注:${row.userNote}`].filter(Boolean).join("；") || "待用户填写"} | ${row.risks.join("；") || "暂无明显风险"} |`),
+        "",
+        "## 风险复核",
+        ...risks.map(item => `- ${item}`),
+        "",
+        "## 待人工确认",
+        "- 省考试院当年招生计划、投档规则和正式志愿数量。",
+        "- 高校招生章程、专业组内专业、选科要求、体检/单科限制。",
+        "- 是否服从调剂、家庭费用承受边界、城市和专业底线。",
+        "",
+        "最终填报前，以省考试院系统和高校招生章程为准。"
+      ];
+      return lines.join("\n");
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    document.getElementById("loadDataBtn").addEventListener("click", async () => {
+      const rows = await loadRealData();
+      if (rows.length) evaluate();
+    });
+
+    document.getElementById("calcBtn").addEventListener("click", async () => {
+      if (!parseCsv(document.getElementById("candidateText").value).length) {
+        const rows = await loadRealData();
+        if (!rows.length) {
+          evaluate();
+          document.getElementById("results").scrollIntoView({ behavior: "smooth", block: "start" });
+          return;
+        }
+      }
+      evaluate();
+      document.getElementById("results").scrollIntoView({ behavior: "smooth", block: "start" });
+      const btn = document.getElementById("calcBtn");
+      btn.textContent = "已评估";
+      window.setTimeout(() => {
+        btn.textContent = "开始评估";
+      }, 1200);
+    });
+
+    document.getElementById("clearBtn").addEventListener("click", () => {
+      document.getElementById("candidateText").value = "";
+      setDataStatus("候选数据已清空。", "normal");
+      evaluate();
+    });
+
+    document.getElementById("uploadBtn").addEventListener("click", () => {
+      document.getElementById("csvFile").click();
+    });
+
+    document.getElementById("csvFile").addEventListener("change", event => {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        document.getElementById("candidateText").value = String(reader.result || "");
+        const count = parseCsv(String(reader.result || "")).length;
+        setDataStatus(`CSV 已导入，识别到 ${count} 条候选数据。`, count ? "ok" : "error");
+        evaluate();
+      };
+      reader.readAsText(file, "utf-8");
+    });
+
+    document.getElementById("downloadBtn").addEventListener("click", () => {
+      const report = window.__latestReport || buildReport([], getForm(), ["尚未生成评估结果。"]);
+      const blob = new Blob([report], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "志愿方案复核报告.md";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    document.getElementById("candidateText").value = "";
+    updatePriorityHint();
+    evaluate();
+  </script>
+</body>
+</html>
